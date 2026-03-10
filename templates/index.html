@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>SmartMine Mineral Classifier</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/styles.css') }}"
+    />
+  </head>
+  <body>
+    <div class="page">
+      <header class="header">
+        <div class="brand">
+          <span class="brand-mark">SM</span>
+          <div class="brand-text">
+            <h1>SmartMine Vision Lab</h1>
+            <p>Rock · Ore · Mineral classification dashboard</p>
+          </div>
+        </div>
+        <div class="header-pill">
+          <span class="dot live"></span>
+          <span>Model online</span>
+        </div>
+      </header>
+
+      <section class="status-row">
+        <div class="status-card">
+          <p class="status-label">Step 1</p>
+          <p class="status-title">Upload sample</p>
+          <p class="status-text">Drop or browse a single clear image of your geological sample.</p>
+        </div>
+        <div class="status-card">
+          <p class="status-label">Step 2</p>
+          <p class="status-title">Run analysis</p>
+          <p class="status-text">We run it through a trained ResNet model fine‑tuned on minerals.</p>
+        </div>
+        <div class="status-card">
+          <p class="status-label">Step 3</p>
+          <p class="status-title">Review results</p>
+          <p class="status-text">Inspect the predicted class and probability distribution.</p>
+        </div>
+      </section>
+
+      <main class="main">
+        <section class="card upload-card">
+          <div class="section-header">
+            <h2>Upload geological image</h2>
+            <span class="section-tag">Single image · JPG/PNG</span>
+          </div>
+          <p class="subtitle">
+            Drag &amp; drop or browse a photo of a rock, ore, or mineral sample.
+          </p>
+
+          <form
+            id="upload-form"
+            class="upload-form"
+            method="POST"
+            enctype="multipart/form-data"
+          >
+            <label id="dropzone" class="dropzone">
+              <input
+                id="file-input"
+                type="file"
+                name="image"
+                accept="image/*"
+                hidden
+              />
+              <div class="dropzone-inner">
+                <div class="dropzone-icon">📷</div>
+                <p class="dropzone-title">Drop image here</p>
+                <p class="dropzone-text">or click to browse files</p>
+                <p id="file-name" class="file-name"></p>
+              </div>
+            </label>
+
+            <div class="upload-footer">
+              <button type="submit" class="btn primary">Analyze image</button>
+              <p class="upload-hint">No image is stored permanently; uploads stay local to this session.</p>
+            </div>
+          </form>
+
+          {% if error %}
+          <div class="alert alert-error">
+            <span>{{ error }}</span>
+          </div>
+          {% endif %}
+        </section>
+
+        <section class="results-grid">
+          <div class="card result-card">
+            <div class="section-header">
+              <h2>Prediction</h2>
+              {% if prediction %}
+              <span class="section-tag">Latest run</span>
+              {% else %}
+              <span class="section-tag muted">Waiting for upload</span>
+              {% endif %}
+            </div>
+
+            {% if detection_results %}
+            <div class="prediction-main">
+              <h3>Object detection</h3>
+              <p class="subtitle">Detected objects in the image (from TFLite SSD MobileNet).</p>
+            </div>
+
+            <div class="probabilities">
+              <h3>Detections</h3>
+              <ul class="probability-list">
+                {% for det in detection_results %}
+                <li class="probability-row">
+                  <div class="probability-label">
+                    {{ det.class_name }}
+                  </div>
+                  <div class="probability-value">
+                    {{ '%.1f'|format(det.score * 100) }}%
+                  </div>
+                </li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% elif prediction %}
+            <div class="prediction-main">
+              <div class="prediction-label">
+                <span class="label-chip">{{ prediction.class_name }}</span>
+              </div>
+              <p class="confidence">
+                Confidence:
+                <strong>{{ '%.1f'|format(prediction.probability * 100) }}%</strong>
+              </p>
+            </div>
+
+            <div class="probabilities">
+              <h3>Class probabilities</h3>
+              <ul class="probability-list">
+                {% for name, prob in prediction.all_probabilities.items() %}
+                <li class="probability-row">
+                  <div class="probability-label">{{ name }}</div>
+                  <div class="probability-bar-wrapper">
+                    <div
+                      class="probability-bar"
+                      style="width: {{ (prob * 100)|round(1) }}%"
+                    ></div>
+                  </div>
+                  <div class="probability-value">
+                    {{ '%.1f'|format(prob * 100) }}%
+                  </div>
+                </li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% else %}
+            <p class="placeholder">
+              No prediction yet. Upload an image and click
+              <strong>Analyze image</strong>.
+            </p>
+          {% endif %}
+
+            {% if class_names %}
+            <div class="footnote">
+              Model classes:
+              <span class="mono">
+                {{ class_names | join(' · ') }}
+              </span>
+            </div>
+            {% endif %}
+          </div>
+
+          <div class="card preview-card">
+            <div class="section-header">
+              <h2>Image preview</h2>
+              {% if uploaded_image_url %}
+              <span class="section-tag">Current sample</span>
+              {% else %}
+              <span class="section-tag muted">No image yet</span>
+              {% endif %}
+            </div>
+
+            {% if detection_image_url %}
+            <div class="preview-frame">
+              <img
+                src="{{ detection_image_url }}"
+                alt="Detected overlay"
+                class="preview-image"
+              />
+              <p class="caption">Overlay shows detected bounding boxes.</p>
+            </div>
+            {% elif uploaded_image_url %}
+            <div class="preview-frame">
+              <img
+                src="{{ uploaded_image_url }}"
+                alt="Uploaded sample"
+                class="preview-image"
+              />
+            </div>
+            {% else %}
+            <div class="preview-placeholder">
+              <div class="preview-icon">🪨</div>
+              <p>Uploaded image will appear here.</p>
+            </div>
+            {% endif %}
+
+            {% if tflite_error %}
+            <div class="alert alert-error">
+              <span>{{ tflite_error }}</span>
+            </div>
+            {% endif %}
+          </div>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <p>
+          Powered by
+          <span class="mono">ResNet</span> &
+          <span class="mono">PyTorch</span> · Flask UI
+        </p>
+      </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  </body>
+  </html>
+

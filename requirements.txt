@@ -1,0 +1,17 @@
+torch>=2.0.0
+torchvision>=0.15.0
+numpy
+pillow
+fastapi
+uvicorn[standard]
+python-multipart
+scikit-learn
+matplotlib
+seaborn
+flask>=3.0.0
+flask-sqlalchemy>=3.1.0
+flask-cors>=4.0.0
+python-dotenv>=1.0.0
+
+# Note: `tflite-support` is optional; it may fail to install on some Windows/Python versions
+

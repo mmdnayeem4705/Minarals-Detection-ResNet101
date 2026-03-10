@@ -1,0 +1,22 @@
+node_modules/
+.next/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+tsconfig.tsbuildinfo
+*.pth
+training_curves.png
+confusion_matrix.png
+__pycache__/
+*.pyc
+flask-backend/smartmine.db
+
+# TensorFlow / Streamlit artifacts
+.streamlit_tmp/
+
+# Trained model outputs
+tf_model/models/
+
+yolo/runs/
