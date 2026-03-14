@@ -11,19 +11,32 @@ from flask import Flask, redirect, render_template, request, url_for
 from werkzeug.utils import secure_filename
 
 _REPO_ROOT = Path(__file__).resolve().parent
-sys.path.insert(0, str(_REPO_ROOT / "ai-model"))
+sys.path.insert(0, str(_REPO_ROOT / "ai_model"))
 
-from inference import load_model, predict_from_bytes  # type: ignore[import-not-found]  # noqa: E402
+try:
+    from inference import load_model, predict_from_bytes  # type: ignore[import-not-found]  # noqa: E402
+    INFERENCE_AVAILABLE = True
+except Exception:
+    INFERENCE_AVAILABLE = False
+    load_model = None
+    predict_from_bytes = None
 
 # Optional TFLite object detection (uses either tflite-support or tensorflow)
-from ai_model.tflite_detector import draw_detections, detect_image, load_detector  # type: ignore[import-not-found]  # noqa: E402
+try:
+    from ai_model.tflite_detector import draw_detections, detect_image, load_detector  # type: ignore[import-not-found]  # noqa: E402
+    TFLITE_AVAILABLE = True
+except Exception:
+    TFLITE_AVAILABLE = False
+    draw_detections = None
+    detect_image = None
+    load_detector = None
 
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_UPLOAD_DIR = BASE_DIR / "static" / "uploads"
 STATIC_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif"}
+ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
 
 
 def allowed_file(filename: str) -> bool:
@@ -36,14 +49,18 @@ def create_app() -> Flask:
     app.config["UPLOAD_FOLDER"] = str(STATIC_UPLOAD_DIR)
 
     # Prefer ResNet-101 by default, fall back to ResNet-18 if the checkpoint is missing.
-    default_path = BASE_DIR / "ai-model" / "models" / "resnet101_mineral.pth"
+    default_path = BASE_DIR / "ai_model" / "models" / "resnet101_mineral.pth"
     if not default_path.exists():
-        default_path = BASE_DIR / "ai-model" / "models" / "resnet18_mineral.pth"
+        default_path = BASE_DIR / "ai_model" / "models" / "resnet18_mineral.pth"
     model_path_env = os.environ.get("MINERAL_MODEL_PATH", str(default_path))
     device = os.environ.get("MINERAL_MODEL_DEVICE", "cpu")
 
     try:
-        model, class_names = load_model(model_path_env, device=device)
+        if INFERENCE_AVAILABLE:
+            model, class_names = load_model(model_path_env, device=device)
+        else:
+            model = None
+            class_names = []
     except FileNotFoundError:
         model = None
         class_names = []
@@ -56,14 +73,17 @@ def create_app() -> Flask:
     tflite_labels: list[str] = []
     tflite_error = None
 
-    tflite_model_path = os.environ.get(
-        "TFLITE_MODEL_PATH",
-        str(BASE_DIR / "models" / "model.tflite"),
-    )
-    try:
-        tflite_detector, tflite_labels = load_detector(tflite_model_path)
-    except Exception as exc:  # noqa: BLE001
-        tflite_error = str(exc)
+    if TFLITE_AVAILABLE:
+        tflite_model_path = os.environ.get(
+            "TFLITE_MODEL_PATH",
+            str(BASE_DIR / "models" / "model.tflite"),
+        )
+        try:
+            tflite_detector, tflite_labels = load_detector(tflite_model_path)
+        except Exception as exc:  # noqa: BLE001
+            tflite_error = str(exc)
+    else:
+        tflite_error = "TFLite support not available (tflite-support or tensorflow not installed or incompatible)"
 
     # ------------------------------------------------------------------
     # Routes
@@ -82,7 +102,7 @@ def create_app() -> Flask:
             if not file or file.filename == "":
                 error = "Please choose an image file to upload."
             elif not allowed_file(file.filename):
-                error = "Unsupported file type. Please upload a PNG or JPG image."
+                error = "Unsupported file type. Please upload a PNG, JPG, or WEBP image."
             else:
                 safe_name = secure_filename(file.filename)
                 timestamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S-%f")
